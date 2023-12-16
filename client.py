@@ -2,6 +2,7 @@ import socket
 import json
 import struct
 import os
+import sys
 
 max_buffersize = 1024 # warning never set buffer size to be larger than servers.
 
@@ -16,10 +17,9 @@ class Client:
     def download(self, filename):
         filepath = "./received/" + filename
         # 1.) Get the file size
-        payload = {'type': 'FILE_SREQ', 'offset': '0', 'length': '0', 'filename': filename}
+        payload = f"TYPE FILE_SREQ, OFFSET 0, LENGTH 0, FILENAME {filename}, DATA " + '\0'
         # - serialize payload
-        json_data = json.dumps(payload) + '\0'
-        self.sockfd.send(json_data.encode('utf-8'))
+        self.sockfd.send(payload.encode('ascii'))
         resp = self.sockfd.recv(max_buffersize)
         # - convert bytes to int
         bytes = struct.unpack('<Q', resp)[0] 
@@ -27,10 +27,9 @@ class Client:
         fd = os.open(filepath, os.O_CREAT | os.O_WRONLY)
         offset = 0
         for _ in range(bytes//max_buffersize):
-            payload = {'type': 'FILE_DREQ', 'offset': f'{offset}', 'length': f'{max_buffersize}', 'filename': filename}
+            payload = f"TYPE FILE_DREQ, OFFSET {offset}, LENGTH {max_buffersize}, FILENAME {filename}, DATA " + '\0'
             # - Serialize payload
-            json_data = json.dumps(payload) + '\0'
-            self.sockfd.send(json_data.encode('utf-8'))
+            self.sockfd.send(payload.encode('ascii'))
             resp = self.sockfd.recv(max_buffersize)
             # - Write chunk to received dir
             os.lseek(fd, offset, os.SEEK_SET) 
@@ -38,10 +37,9 @@ class Client:
             offset += max_buffersize
         remainder = bytes%max_buffersize
         if remainder:
-            payload = {'type': 'FILE_DREQ', 'offset': f'{offset}', 'length': f'{remainder}', 'filename': filename}
+            payload = f"TYPE FILE_DREQ, OFFSET {offset}, LENGTH {remainder}, FILENAME {filename}, DATA " + '\0'
             # - Write the remainder bytes
-            json_data = json.dumps(payload) + '\0'
-            self.sockfd.send(json_data.encode('utf-8'))
+            self.sockfd.send(payload.encode('ascii'))
             resp = self.sockfd.recv(remainder)
             # - Write chunk to received dir                 
             os.lseek(fd, offset, os.SEEK_SET)
@@ -51,11 +49,37 @@ class Client:
     def close(self):
         self.sockfd.close()
 
+    def _calculate_chunk(self, filename, offset, bytes):
+        payload = f"TYPE FILE_UREQ, OFFSET {offset}, LENGTH 0, FILENAME {filename}, DATA " + '\0'
+        chunk = max(0, min(bytes, max_buffersize - len(payload)))
+        return chunk
+    
+    def upload(self, filename, path):
+        bytes = os.path.getsize(path)
+        fd = os.open(path, os.O_RDONLY)
+        chunk = self._calculate_chunk(filename, 0, bytes)
+        offset = 0
+        while bytes:
+            #payload = {'type': 'FILE_UREQ', 'offset': str(offset), 'length': '0', 'filename': filename, 'data': ''} 
+            payload = f"TYPE FILE_UREQ, OFFSET {offset}, LENGTH 0, FILENAME {filename}, DATA "
+            # read data from file
+            os.lseek(fd, offset, os.SEEK_SET)
+            payload = payload.encode('ascii') + os.read(fd, chunk) + b'\0'
+            self.sockfd.send(payload)
+            resp = self.sockfd.recv(max_buffersize)
+            # update offset, chunk, and bytes left 
+            offset += chunk
+            bytes -= chunk
+            chunk = self._calculate_chunk(filename, offset, bytes)
+        os.close(fd) 
+
+
 def main():
     # Connect to the server
     client = Client("127.0.0.1", 8000)
     client.connect()
-    client.download("largetest.txt")
+    client.download("Cat03.jpg")
+    #client.upload("test.txt", "./test.txt")
     client.close()
     print("Socket closed.")
 
