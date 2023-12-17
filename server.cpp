@@ -1,14 +1,14 @@
 #include <thread>
 #include "TCPRequestChannel.h"
 #include <unistd.h>
-#include "json.hpp"
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <string>
 #include <cstring>
 #include <iostream>
+#include <cassert>
+#include <dirent.h>
 using namespace std;
-using json = nlohmann::json;
 
 
 int buffercapacity = 1024;
@@ -74,8 +74,8 @@ pair<int, int> get_request_protocol(char * request, char * protocol){
     // find the last index + 1 of type in request
     pair<int,int> type = {-1,-1};
     int start = -1;
-    for(int i = 0; i < strlen(request); i++){
-        int j = i;
+    for(long unsigned int i = 0; i < strlen(request); i++){
+        long unsigned int j = i;
         while(j < strlen(request) && j-i < strlen(protocol) && protocol[j-i] == request[j]){
             j++;
         }
@@ -89,13 +89,32 @@ pair<int, int> get_request_protocol(char * request, char * protocol){
         return type;
     }
     // find the actual protocol end
-    int end = start;
+    long unsigned int end = start;
     while(end+1 < strlen(request) and request[end+1] != ','){
        end++; 
     }
     type.first = start;
     type.second = end;
     return type;
+}
+
+void process_ls_request(TCPRequestChannel *rc, char * buffer){
+    buffer[0] = '\0';
+    DIR *d;
+    d = opendir("./DATABASE");
+    struct dirent *dir;
+    int offset = 0;
+    while((dir = readdir(d))){
+        if(strcmp(dir->d_name,".") == 0 || strcmp(dir->d_name, "..") == 0){
+            continue;
+        }
+        char * filename = dir->d_name;
+        strcat(filename, "\n");
+        int len = strlen(filename);
+        strcat(buffer, filename);
+        offset += len;
+    }
+    rc->cwrite(buffer, offset+1); 
 }
 
 void process_request(TCPRequestChannel *rc, char * buffer){
@@ -135,6 +154,9 @@ void process_request(TCPRequestChannel *rc, char * buffer){
     }
     else if(strncmp(buffer + type.first, "FILE_UREQ", 9) == 0){
         process_file_upload_request(rc, stoi(offsetCstr), data.second-data.first+1, (char*)path.c_str(), buffer + data.first);
+    }
+    else if(strncmp(buffer + type.first, "FILE_LREQ", 9) == 0){
+        process_ls_request(rc, buffer); 
     }
 
 }

@@ -54,6 +54,14 @@ class Client:
         chunk = max(0, min(bytes, max_buffersize - len(payload)))
         return chunk
     
+    def get_filenames(self):
+        payload = f"TYPE FILE_LREQ, OFFSET , LENGTH , FILENAME , DATA " + '\0'
+        self.sockfd.send(payload.encode('ascii'))
+        resp = self.sockfd.recv(max_buffersize)
+        files = [f for f in resp.decode('ascii').split('\n') if f]
+        return files
+
+
     def upload(self, filename, path):
         bytes = os.path.getsize(path)
         fd = os.open(path, os.O_RDONLY)
@@ -78,8 +86,10 @@ def main():
     # Connect to the server
     client = Client("127.0.0.1", 8000)
     client.connect()
-    client.download("Cat03.jpg")
+    #client.download("Cat03.jpg")
     #client.upload("test.txt", "./test.txt")
+    files = client.get_filenames()
+    print(files)
     client.close()
     print("Socket closed.")
 
