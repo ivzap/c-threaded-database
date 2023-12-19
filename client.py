@@ -1,8 +1,6 @@
 import socket
-import json
 import struct
 import os
-import sys
 
 max_buffersize = 1024 # warning never set buffer size to be larger than servers.
 
@@ -61,7 +59,6 @@ class Client:
         files = [f for f in resp.decode('ascii').split('\n') if f]
         return files
 
-
     def upload(self, filename, path):
         bytes = os.path.getsize(path)
         fd = os.open(path, os.O_RDONLY)
@@ -80,19 +77,3 @@ class Client:
             bytes -= chunk
             chunk = self._calculate_chunk(filename, offset, bytes)
         os.close(fd) 
-
-
-def main():
-    # Connect to the server
-    client = Client("127.0.0.1", 8000)
-    client.connect()
-    #client.download("Cat03.jpg")
-    #client.upload("test.txt", "./test.txt")
-    files = client.get_filenames()
-    print(files)
-    client.close()
-    print("Socket closed.")
-
-if __name__ == "__main__":
-    main()
-
