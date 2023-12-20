@@ -45,6 +45,8 @@ class Client:
         os.close(fd)
     
     def close(self):
+        payload = f"TYPE QUIT_MSG, OFFSET , LENGTH , FILENAME , DATA " + '\0'
+        self.sockfd.send(payload.encode('ascii'))
         self.sockfd.close()
 
     def _calculate_chunk(self, filename, offset, bytes):
@@ -65,11 +67,11 @@ class Client:
         chunk = self._calculate_chunk(filename, 0, bytes)
         offset = 0
         while bytes:
-            #payload = {'type': 'FILE_UREQ', 'offset': str(offset), 'length': '0', 'filename': filename, 'data': ''} 
             payload = f"TYPE FILE_UREQ, OFFSET {offset}, LENGTH 0, FILENAME {filename}, DATA "
             # read data from file
             os.lseek(fd, offset, os.SEEK_SET)
-            payload = payload.encode('ascii') + os.read(fd, chunk) + b'\0'
+            data = os.read(fd, chunk) 
+            payload = payload.encode('ascii') + data + b'\0'
             self.sockfd.send(payload)
             resp = self.sockfd.recv(max_buffersize)
             # update offset, chunk, and bytes left 

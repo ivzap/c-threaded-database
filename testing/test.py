@@ -13,13 +13,13 @@ def main():
     parser.add_argument('-a', '--address')
     # Parse the arguments
     args = parser.parse_args()
-    client = Client(args.address, int(args.port))
-    client.connect()
+     
+    client = Client(args.address, args.port)
     if args.uploadRequest:
         client.upload(args.filename, args.path)
     elif args.downloadRequest:
         client.download(args.filename)
-    client.close()
+
 if __name__ == '__main__':
     main()
 
